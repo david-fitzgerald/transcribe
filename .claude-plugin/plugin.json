@@ -1,0 +1,12 @@
+{
+  "name": "transcribe",
+  "version": "0.1.0",
+  "description": "Transcribe videos and audio locally (human subtitles when available, whisper.cpp otherwise) so Claude can summarise them.",
+  "author": {
+    "name": "David Fitzgerald"
+  },
+  "homepage": "https://github.com/david-fitzgerald/transcribe",
+  "repository": "https://github.com/david-fitzgerald/transcribe",
+  "license": "MIT",
+  "keywords": ["transcription", "whisper", "whisper.cpp", "yt-dlp", "youtube", "podcast", "video"]
+}

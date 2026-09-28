@@ -133,5 +133,6 @@ The skill's `SKILL.md` carries agent-side behaviour: run the script in the backg
 | whisper-cli defaults to English | Non-English audio mistranscribed | Always pass `-l` (default `auto`) |
 | Whisper repeats lines on music/silence | Junk lines in transcript | Consecutive-duplicate collapse; SKILL.md tells the agent to flag remaining repetition; VAD deferred |
 | Two inputs share a title or filename | One overwrites or wrongly SKIPs the other | Stem carries the video id or a path hash |
+| Skill `allowed-tools` pre-approval not applied when the agent invokes the skill itself (observed in `claude -p`, Claude Code 2.1.283; applied for a user-typed `/transcribe`) | One permission prompt to run the script | SKILL.md gives the exact unquoted command the grant matches; README tells users `/transcribe` runs without a prompt |
 | Many long transcripts at once | Agent context exhausted | SKILL.md: summarise one at a time, subagents where available |
 | Playlist URL passed | Unbounded download | Metadata probe detects `_type: playlist` → FAIL with "pass video URLs"; a watch URL carrying a `list=` parameter resolves to the single video (`--no-playlist`, verified) |
