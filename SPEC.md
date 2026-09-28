@@ -41,7 +41,7 @@ transcribe.py [-o DIR] [--model NAME|PATH] [--lang CODE] [--force] INPUT [INPUT 
 
 - stdout: one result line per input — `OK|SKIP|FAIL <tab> <how> <tab> <txt path | error>`.
 - stderr: progress.
-- Exit: `0` all OK/SKIP · `1` any FAIL · `2` usage error or missing dependency (before any work).
+- Exit: `0` all OK/SKIP · `1` any FAIL · `2` usage or preflight failure before any work (missing dependency, model not found / download failed, output directory not creatable).
 
 **Install.** Plugin: `/plugin marketplace add david-fitzgerald/transcribe` → `/plugin install transcribe@transcribe` (the repo is its own marketplace, also named `transcribe`). Manual: copy `skills/transcribe/` to `~/.claude/skills/` (or any Agent Skills–compatible agent's skills dir).
 
@@ -49,7 +49,7 @@ transcribe.py [-o DIR] [--model NAME|PATH] [--lang CODE] [--force] INPUT [INPUT 
 
 - **Input** — raw string; kind = `url` (`http://` or `https://`) or `file` (existing path). Any other `<scheme>://` FAILs as unsupported; anything else (including bare domains) FAILs as not found.
 - **Result** — input · status (`OK`/`SKIP`/`FAIL`) · how (`subtitles:<lang>` / `whisper:<model>`) · txt path or error.
-- **Output pair** — `<out>/<stem>.txt` + `<out>/<stem>.srt`, where `<stem>` = `<slug of title or filename, ≤60 chars>-<id>`; `id` = the site's video id (URL) or the first 8 hex of sha1(absolute path) (file).
+- **Output pair** — `<out>/<stem>.txt` + `<out>/<stem>.srt`, where `<stem>` = `<ASCII slug of title or filename, ≤60 chars>-<first 8 hex of sha1(identity)>`; identity = the site's canonical URL (`webpage_url`, else the input URL) or the absolute path. Site ids are never used — they are neither unique across sites nor filename-safe.
 - **`.txt` layout** — header block, `---`, then one line per cue (consecutive duplicates collapsed):
 
   ```
@@ -132,7 +132,9 @@ The skill's `SKILL.md` carries agent-side behaviour: run the script in the backg
 | Model download interrupted | Corrupt or partial model | `.part` file, renamed only on curl success |
 | whisper-cli defaults to English | Non-English audio mistranscribed | Always pass `-l` (default `auto`) |
 | Whisper repeats lines on music/silence | Junk lines in transcript | Consecutive-duplicate collapse; SKILL.md tells the agent to flag remaining repetition; VAD deferred |
-| Two inputs share a title or filename | One overwrites or wrongly SKIPs the other | Stem carries the video id or a path hash |
+| Two inputs share a title, filename, or site id (e.g. `episode.mp3` on two hosts) | One overwrites or wrongly SKIPs the other | Stem carries a hash of the canonical URL or absolute path |
+| Two runs write the same output directory, or download the model, at once | Staging files clobbered; completion guarantee void | Unsupported: one run per output directory and cache at a time (README says so) |
+| Malformed metadata or subtitles from a tool (non-object JSON, NaN duration, bad timing line) | Crash or junk transcript | Parsed at the boundary: optional fields fall back to unknown; structural garbage FAILs that input |
 | Skill `allowed-tools` pre-approval not applied when the agent invokes the skill itself (observed in `claude -p`, Claude Code 2.1.283; applied for a user-typed `/transcribe`) | One permission prompt to run the script | SKILL.md gives the exact unquoted command the grant matches; README tells users `/transcribe` runs without a prompt |
 | Many long transcripts at once | Agent context exhausted | SKILL.md: summarise one at a time, subagents where available |
 | Playlist URL passed | Unbounded download | Metadata probe detects `_type: playlist` → FAIL with "pass video URLs"; a watch URL carrying a `list=` parameter resolves to the single video (`--no-playlist`, verified) |
