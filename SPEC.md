@@ -129,7 +129,8 @@ The skill's `SKILL.md` carries agent-side behaviour: run the script in the backg
 | YouTube JS challenge unsolvable (no JS runtime / EJS scripts) | YouTube URLs FAIL | README install recipe includes `deno` (Homebrew `yt-dlp` pulls it in; pipx needs `yt-dlp[default]` + deno); per-input FAIL names yt-dlp |
 | whisper-cli exits 0 without writing output (bad audio) | Silent empty transcript | Require the `.srt` to exist and parse to ≥ 1 cue, else FAIL |
 | Agent tool timeout kills a long batch | Batch stops mid-way | Atomic writes + SKIP make a re-run resume; SKILL.md says run in background |
-| Model download interrupted | Corrupt or partial model | `.part` file, renamed only on curl success |
+| Model download interrupted | Corrupt or partial model | `.part` file, renamed only on curl success, removed on failure. Cleanup is best-effort: a SIGKILL can leave a `.part` or `.tmp` behind, but neither is ever treated as complete |
+| Secrets in inputs (`user:pass@` URLs, `?token=`/`sig`/`X-Amz-*` query parameters) | Leak into `.txt` headers or result lines | `redact()` at every presentation boundary; the unredacted URL is still used for fetching and identity |
 | whisper-cli defaults to English | Non-English audio mistranscribed | Always pass `-l` (default `auto`) |
 | Whisper repeats lines on music/silence | Junk lines in transcript | Consecutive-duplicate collapse; SKILL.md tells the agent to flag remaining repetition; VAD deferred |
 | Two inputs share a title, filename, or site id (e.g. `episode.mp3` on two hosts) | One overwrites or wrongly SKIPs the other | Stem carries a hash of the canonical URL or absolute path |
