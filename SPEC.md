@@ -43,7 +43,7 @@ transcribe.py [-o DIR] [--model NAME|PATH] [--lang CODE] [--force] INPUT [INPUT 
 - stderr: progress.
 - Exit: `0` all OK/SKIP · `1` any FAIL · `2` usage error or missing dependency (before any work).
 
-**Install.** Plugin: `/plugin marketplace add <owner>/<repo>` → `/plugin install transcribe@<marketplace>`. Manual: copy `skills/transcribe/` to `~/.claude/skills/` (or any Agent Skills–compatible agent's skills dir).
+**Install.** Plugin: `/plugin marketplace add david-fitzgerald/transcribe` → `/plugin install transcribe@transcribe` (the repo is its own marketplace, also named `transcribe`). Manual: copy `skills/transcribe/` to `~/.claude/skills/` (or any Agent Skills–compatible agent's skills dir).
 
 ## Data Model
 
@@ -67,16 +67,18 @@ transcribe.py [-o DIR] [--model NAME|PATH] [--lang CODE] [--force] INPUT [INPUT 
 ## Approach
 
 ```
-preflight: ffmpeg + whisper-cli required; yt-dlp if any URL; curl if model not cached → else exit 2
+preflight: ffmpeg + ffprobe + whisper-cli required; yt-dlp if any URL; curl if model not cached → else exit 2
 model: resolve name → cache path; download via curl to .part, rename on success
 for each input, sequentially:
-  URL  → yt-dlp --dump-json --no-playlist → stem → outputs exist & !force → SKIP
+  URL  → yt-dlp -J --flat-playlist --no-playlist (metadata only) → playlist? → FAIL
+       → stem → outputs exist & !force → SKIP
        → human subtitle track in the video's language? → yt-dlp --write-subs --convert-subs srt → OK
        → else yt-dlp -f bestaudio → temp file ─┐
-  file → stem → outputs exist & !force → SKIP  │
+  file → ffprobe duration → stem → outputs exist & !force → SKIP
        → ffmpeg 16 kHz mono PCM wav ◄──────────┘
        → whisper-cli -m model -l lang -osrt → srt
-  srt → header + cue lines → write .srt/.txt to temp, rename into <out> (atomic)
+  srt → header + cue lines → write .srt then .txt, each via temp + rename into <out>;
+        the .txt is written last, so its presence is the completion marker SKIP checks
   any error → FAIL line for this input, continue with the next
 print result lines; exit 0/1
 ```
@@ -103,7 +105,7 @@ The skill's `SKILL.md` carries agent-side behaviour: run the script in the backg
 | URL with human subtitles skips whisper | Fake-binary test + one real YouTube smoke | Result `subtitles:<lang>`; whisper-cli never invoked |
 | URL without human subtitles uses whisper | Fake-binary test + one real YouTube smoke | Result `whisper:<model>`; `.txt` non-empty |
 | Batch isolates failures | 3 inputs, middle one missing | 2 OK + 1 FAIL line; exit 1 |
-| Re-run resumes | Second run over the same inputs | All SKIP; whisper-cli and yt-dlp downloads not invoked |
+| Re-run resumes | Second run over the same inputs | All SKIP; no audio/subtitle download, no ffmpeg, no whisper-cli (the URL metadata probe still runs — it yields the stem) |
 | No half-written transcripts | whisper-cli fails mid-input | No `.txt`/`.srt` for that input in `<out>` |
 | Missing dependency fails fast | PATH without whisper-cli | Exit 2 before any work; message names the tool + install command |
 | Header carries provenance | Inspect a URL-path `.txt` | title, channel, date, duration, source, transcript lines present |
@@ -123,4 +125,4 @@ The skill's `SKILL.md` carries agent-side behaviour: run the script in the backg
 | Whisper repeats lines on music/silence | Junk lines in transcript | Consecutive-duplicate collapse; SKILL.md tells the agent to flag remaining repetition; VAD deferred |
 | Two inputs share a title or filename | One overwrites or wrongly SKIPs the other | Stem carries the video id or a path hash |
 | Many long transcripts at once | Agent context exhausted | SKILL.md: summarise one at a time, subagents where available |
-| Playlist URL passed | Unbounded download | `--no-playlist`; one video per URL |
+| Playlist URL passed | Unbounded download | Metadata probe detects `_type: playlist` → FAIL with "pass video URLs"; a watch URL carrying a `list=` parameter resolves to the single video (`--no-playlist`, verified) |
