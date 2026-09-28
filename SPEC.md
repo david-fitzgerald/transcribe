@@ -47,7 +47,7 @@ transcribe.py [-o DIR] [--model NAME|PATH] [--lang CODE] [--force] INPUT [INPUT 
 
 ## Data Model
 
-- **Input** — raw string; kind = `url` (has a scheme) or `file` (existing path); anything else FAILs as not found.
+- **Input** — raw string; kind = `url` (`http://` or `https://`) or `file` (existing path). Any other `<scheme>://` FAILs as unsupported; anything else (including bare domains) FAILs as not found.
 - **Result** — input · status (`OK`/`SKIP`/`FAIL`) · how (`subtitles:<lang>` / `whisper:<model>`) · txt path or error.
 - **Output pair** — `<out>/<stem>.txt` + `<out>/<stem>.srt`, where `<stem>` = `<slug of title or filename, ≤60 chars>-<id>`; `id` = the site's video id (URL) or the first 8 hex of sha1(absolute path) (file).
 - **`.txt` layout** — header block, `---`, then one line per cue (consecutive duplicates collapsed):
@@ -73,13 +73,18 @@ for each input, sequentially:
   URL  → yt-dlp -J --flat-playlist --no-playlist (metadata only) → playlist? → FAIL
        → stem → outputs exist & !force → SKIP
        → human subtitle track in the video's language? → yt-dlp --write-subs --convert-subs srt → OK
+         (language = --lang, else the site's metadata; if unknown, use the track only when exactly one exists)
        → else yt-dlp -f bestaudio → temp file ─┐
   file → ffprobe duration → stem → outputs exist & !force → SKIP
        → ffmpeg 16 kHz mono PCM wav ◄──────────┘
-       → whisper-cli -m model -l lang -osrt → srt
-  srt → header + cue lines → write .srt then .txt, each via temp + rename into <out>;
-        the .txt is written last, so its presence is the completion marker SKIP checks
-  any error → FAIL line for this input, continue with the next
+       → whisper-cli -m model -l lang -osrt → srt (exit status alone is not trusted: the .srt must exist)
+  srt → parse (malformed → FAIL; zero cues → FAIL "empty transcript") → header + cue lines
+  publish: stage both files in <out> as temps → delete any existing .txt → rename .srt → rename .txt;
+           the .txt is published last, so its presence is the completion marker SKIP checks
+  every yt-dlp call runs with --ignore-config; each step must yield exactly one expected artifact
+  expected external failures (non-zero exit, missing artifact, OSError) → FAIL line; batch continues
+  <out> is created up front (failure → exit 2); downloads and conversions live in a system temp dir;
+  only publish staging files (.<stem>.*.tmp, same filesystem for atomic rename) sit in <out>, removed on failure
 print result lines; exit 0/1
 ```
 
@@ -94,8 +99,10 @@ The skill's `SKILL.md` carries agent-side behaviour: run the script in the backg
 - In the context of summarisation, facing API keys and cost, we chose to leave all language work to the agent reading the `.txt` to achieve a key-free tool, accepting the agent's context cost on large batches.
 - In the context of long batches under agent tool timeouts, facing interrupted runs, we chose atomic writes plus skip-if-exists to achieve resumable batches with no half-written transcripts, accepting a `--force` flag to redo.
 - In the context of batch throughput, facing a single GPU, we chose sequential processing to achieve predictable resource use, accepting no speed-up from parallelism on CPU-only hosts.
-- In the context of distribution, facing Claude Code plugin users, manual installers, and other agents, we chose one repo that is both an Agent Skills–standard skill (spec-only frontmatter, `${CLAUDE_SKILL_DIR}` paths) and a single-plugin marketplace, to achieve every install path from one tree, accepting the `/transcribe:transcribe` namespace in plugin mode.
+- In the context of distribution, facing Claude Code plugin users, manual installers, and other agents, we chose one repo that is both an Agent Skills–standard skill (spec-only frontmatter; script referenced as `scripts/transcribe.py` relative to the skill root, with `${CLAUDE_SKILL_DIR}` as the Claude Code resolution) and a single-plugin marketplace, to achieve every install path from one tree, accepting the `/transcribe:transcribe` namespace in plugin mode.
 - In the context of model download, facing Python 3.14 `urllib` TLS EOF failures on CDN downloads, we chose `curl` to achieve reliable large downloads, accepting curl as a first-run dependency.
+- In the context of yt-dlp calls, facing user config files that can add outputs, simulate, or post-process, we chose `--ignore-config` on every call to achieve deterministic artifacts, accepting that config-file cookies and proxies are not honoured in v0.1.
+- In the context of batch error handling, facing expected external failures (CLI exit codes, whisper-cli exiting 0 with no output, missing files) versus programming bugs, we chose to translate the former into per-input FAILs at each tool boundary and let everything else propagate, to achieve resilient batches that still crash loudly on defects, accepting that a bug aborts the batch (completed outputs survive).
 
 ## Acceptance Criteria
 
@@ -106,7 +113,7 @@ The skill's `SKILL.md` carries agent-side behaviour: run the script in the backg
 | URL without human subtitles uses whisper | Fake-binary test + one real YouTube smoke | Result `whisper:<model>`; `.txt` non-empty |
 | Batch isolates failures | 3 inputs, middle one missing | 2 OK + 1 FAIL line; exit 1 |
 | Re-run resumes | Second run over the same inputs | All SKIP; no audio/subtitle download, no ffmpeg, no whisper-cli (the URL metadata probe still runs — it yields the stem) |
-| No half-written transcripts | whisper-cli fails mid-input | No `.txt`/`.srt` for that input in `<out>` |
+| No half-written transcripts | Failure before publish (e.g. whisper-cli) and interruption between publish renames, each for a fresh and a `--force` run | Before the old `.txt` is removed (including staging failures): a fresh run leaves nothing; a forced run leaves the previous complete pair untouched. After the old `.txt` is removed and before the new one is published: no `.txt` remains, so the next run redoes the input — never a stale or mismatched pair |
 | Missing dependency fails fast | PATH without whisper-cli | Exit 2 before any work; message names the tool + install command |
 | Header carries provenance | Inspect a URL-path `.txt` | title, channel, date, duration, source, transcript lines present |
 | Speed on Apple Silicon | Default model, 23-min video | ≤ 3 min wall (measured 117 s, M5, Low Power Mode) |
@@ -119,6 +126,8 @@ The skill's `SKILL.md` carries agent-side behaviour: run the script in the backg
 |---------|--------|------------|
 | yt-dlp outdated / site changed (observed: 403 on a 6-month-old yt-dlp) | URL inputs FAIL | Per-input FAIL naming yt-dlp; message says to update it; batch continues |
 | Dependency missing | Nothing runs | Preflight exit 2 with the install command for the platform |
+| YouTube JS challenge unsolvable (no JS runtime / EJS scripts) | YouTube URLs FAIL | README install recipe includes `deno` (Homebrew `yt-dlp` pulls it in; pipx needs `yt-dlp[default]` + deno); per-input FAIL names yt-dlp |
+| whisper-cli exits 0 without writing output (bad audio) | Silent empty transcript | Require the `.srt` to exist and parse to ≥ 1 cue, else FAIL |
 | Agent tool timeout kills a long batch | Batch stops mid-way | Atomic writes + SKIP make a re-run resume; SKILL.md says run in background |
 | Model download interrupted | Corrupt or partial model | `.part` file, renamed only on curl success |
 | whisper-cli defaults to English | Non-English audio mistranscribed | Always pass `-l` (default `auto`) |
