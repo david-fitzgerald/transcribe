@@ -4,3 +4,13 @@ __pycache__/
 .ruff_cache/
 transcripts/
 *.part
+
+# Local harness docs (never published)
+AGENTS.md
+CLAUDE.md
+STATUS.md
+NOTES.md
+TASKS.md
+LESSONS.md
+graduation-tracking.md
+plans/
