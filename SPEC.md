@@ -43,7 +43,7 @@ transcribe.py [-o DIR] [--model NAME|PATH] [--lang CODE] [--force] INPUT [INPUT 
 - stderr: progress.
 - Exit: `0` all OK/SKIP · `1` any FAIL · `2` usage or preflight failure before any work (missing dependency, model not found / download failed, output directory not creatable).
 
-**Install.** Plugin: `/plugin marketplace add david-fitzgerald/transcribe` → `/plugin install transcribe@transcribe` (the repo is its own marketplace, also named `transcribe`). Manual: copy `skills/transcribe/` to `~/.claude/skills/` (or any Agent Skills–compatible agent's skills dir).
+**Install.** Plugin: `/plugin marketplace add holarchic/transcribe` → `/plugin install transcribe@transcribe` (the repo is its own marketplace, also named `transcribe`). Manual: copy `skills/transcribe/` to `~/.claude/skills/` (or any Agent Skills–compatible agent's skills dir).
 
 ## Data Model
 

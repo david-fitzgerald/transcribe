@@ -5,8 +5,8 @@
   "author": {
     "name": "David Fitzgerald"
   },
-  "homepage": "https://github.com/david-fitzgerald/transcribe",
-  "repository": "https://github.com/david-fitzgerald/transcribe",
+  "homepage": "https://github.com/holarchic/transcribe",
+  "repository": "https://github.com/holarchic/transcribe",
   "license": "MIT",
   "keywords": ["transcription", "whisper", "whisper.cpp", "yt-dlp", "youtube", "podcast", "video"]
 }

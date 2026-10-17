@@ -1,7 +1,7 @@
 # transcribe
 
-[![CI](https://github.com/david-fitzgerald/transcribe/actions/workflows/ci.yml/badge.svg)](https://github.com/david-fitzgerald/transcribe/actions/workflows/ci.yml)
-[![License: MIT](https://img.shields.io/github/license/david-fitzgerald/transcribe)](LICENSE)
+[![CI](https://github.com/holarchic/transcribe/actions/workflows/ci.yml/badge.svg)](https://github.com/holarchic/transcribe/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/github/license/holarchic/transcribe)](LICENSE)
 
 Local video transcription skill for Claude Code and Agent Skills: human subtitles via yt-dlp, else whisper.cpp.
 
@@ -70,7 +70,7 @@ Tested on macOS with Apple Silicon. CI runs the test suite on Linux and macOS, w
 **Claude Code plugin**
 
 ```
-/plugin marketplace add david-fitzgerald/transcribe
+/plugin marketplace add holarchic/transcribe
 /plugin install transcribe@transcribe
 ```
 
